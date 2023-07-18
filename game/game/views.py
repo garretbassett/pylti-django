@@ -65,6 +65,8 @@ def get_launch_url(request):
 
 def login(request):
     tool_conf = get_tool_conf()
+    # print('DIR: ', dir(tool_conf))
+    # TODO: Update this to the staging URL
     launch_data_storage = get_launch_data_storage()
 
     oidc_login = DjangoOIDCLogin(request, tool_conf, launch_data_storage=launch_data_storage)
@@ -74,9 +76,11 @@ def login(request):
         .redirect(target_link_uri)
 
 
-@require_POST
+# @require_POST
 def launch(request):
     tool_conf = get_tool_conf()
+    # TODO: Update this to the staging URL
+    # tool_conf.set_iss_has_one_client('https://canvas.docker')
     launch_data_storage = get_launch_data_storage()
     message_launch = ExtendedDjangoMessageLaunch(request, tool_conf, launch_data_storage=launch_data_storage)
     message_launch_data = message_launch.get_launch_data()
