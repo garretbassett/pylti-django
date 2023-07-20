@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rhino quiz</title>
+    <script type="text/javascript" src="{% static 'quiz.js' %}" charset="utf-8"></script>
+</head>
+<body>
+    <h3>Quiz</h3>
+    <form id="quizForm">
+        <input type="hidden" id="launchId" value="{{ launch_id }}">
+        <p>How many horns does a Rhino have?</p>
+        <label>
+            <input type="radio" name="answer" value="1">
+            1
+        </label>
+        <br>
+        <label>
+            <input type="radio" name="answer" value="2">
+            2
+        </label>
+        <br>
+        <label>
+            <input type="radio" name="answer" value="3">
+            3
+        </label>
+        <br>
+        <label>
+            <input type="radio" name="answer" value="0">
+            0
+        </label>
+        <br>
+        <br>
+        <label for="additionalInput">Why are the horns the best part of the Rhino?</label>
+        <br>
+        <textarea id="additionalInput" name="additional_comment" rows="4" cols="50"></textarea>
+        <br>
+        <br>
+        <button type="submit">Submit</button>
+    </form>
+
+    <!-- <script src="quiz.js"></script> -->
+</body>
+</html>

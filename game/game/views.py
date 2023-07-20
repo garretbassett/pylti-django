@@ -2,6 +2,7 @@ import datetime
 import os
 import pprint
 
+from .constants import QUIZ_TEMPLATES
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
@@ -111,6 +112,7 @@ def launch_quiz(request):
     launch_data_storage = get_launch_data_storage()
     message_launch = ExtendedDjangoMessageLaunch(request, tool_conf, launch_data_storage=launch_data_storage)
     message_launch_data = message_launch.get_launch_data()
+
     print('\n++++++++++ LAUNCH QUIZ route ++++++++++ \n')
     pprint.pprint(message_launch_data)
 
@@ -119,7 +121,17 @@ def launch_quiz(request):
     print('\n\nLINE ITEM URL: ', lineitem_url)
     request.session['lineitem_url'] = lineitem_url
 
-    return render(request, 'quiz.html', {
+    launch_url = message_launch_data.get('https://purl.imsglobal.org/spec/lti/claim/target_link_uri')
+    resource_link_id = message_launch_data.get('https://purl.imsglobal.org/spec/lti/claim/resource_link', {}).get('id')
+
+    quiz_url = QUIZ_TEMPLATES.get(resource_link_id, 'intro.html')
+    print('\n\nLAUNCH URL: ', launch_url)
+    
+    # for quiz_id, template in QUIZ_TEMPLATES.items():
+    #     if quiz_id in launch_url:
+    #         quiz_url = template
+
+    return render(request, quiz_url, {
         'page_title': PAGE_TITLE,
         'is_deep_link_launch': message_launch.is_deep_link_launch(),
         'launch_data': message_launch.get_launch_data(),
@@ -127,6 +139,22 @@ def launch_quiz(request):
         'curr_user_name': message_launch_data.get('name', ''),
     })
 
+def launch_content(request):
+    tool_conf = get_tool_conf()
+    launch_data_storage = get_launch_data_storage()
+    message_launch = ExtendedDjangoMessageLaunch(request, tool_conf, launch_data_storage=launch_data_storage)
+    message_launch_data = message_launch.get_launch_data()
+
+    lineitem_url = message_launch_data.get('https://purl.imsglobal.org/spec/lti-ags/claim/endpoint', {}).get('lineitem')
+    request.session['lineitem_url'] = lineitem_url
+
+    return render(request, 'intro.html', {
+        'page_title': PAGE_TITLE,
+        'is_deep_link_launch': message_launch.is_deep_link_launch(),
+        'launch_data': message_launch.get_launch_data(),
+        'launch_id': message_launch.get_launch_id(),
+        'curr_user_name': message_launch_data.get('name', ''),
+    })
 
 def get_jwks(request):
     tool_conf = get_tool_conf()
@@ -252,8 +280,7 @@ def quiz_score(request, launch_id, earned_score):
 
         sc_line_item = LineItem()
         sc_line_item.set_id(lineitem_url)\
-            .set_score_maximum(100)\
-            .set_label('Quiz Score')
+            .set_score_maximum(100)
         if resource_link_id:
             sc_line_item.set_resource_id(resource_link_id)
 
@@ -374,60 +401,60 @@ def quiz_score(request, launch_id, earned_score):
 
 
 # def scoreboard(request, launch_id):
-#     # tool_conf = get_tool_conf()
-#     # launch_data_storage = get_launch_data_storage()
-#     # message_launch = ExtendedDjangoMessageLaunch.from_cache(launch_id, request, tool_conf,
-#     #                                                         launch_data_storage=launch_data_storage)
-#     # resource_link_id = message_launch.get_launch_data() \
-#     #     .get('https://purl.imsglobal.org/spec/lti/claim/resource_link', {}).get('id')
+#     tool_conf = get_tool_conf()
+#     launch_data_storage = get_launch_data_storage()
+#     message_launch = ExtendedDjangoMessageLaunch.from_cache(launch_id, request, tool_conf,
+#                                                             launch_data_storage=launch_data_storage)
+#     resource_link_id = message_launch.get_launch_data() \
+#         .get('https://purl.imsglobal.org/spec/lti/claim/resource_link', {}).get('id')
 
-#     # if not message_launch.has_nrps():
-#     #     return HttpResponseForbidden("Don't have names and roles!")
+#     if not message_launch.has_nrps():
+#         return HttpResponseForbidden("Don't have names and roles!")
 
-#     # if not message_launch.has_ags():
-#     #     return HttpResponseForbidden("Don't have grades!")
+#     if not message_launch.has_ags():
+#         return HttpResponseForbidden("Don't have grades!")
 
-#     # ags = message_launch.get_ags()
+#     ags = message_launch.get_ags()
 
-#     # if ags.can_create_lineitem():
-#     #     score_line_item = LineItem()
-#     #     score_line_item.set_id('score') \
-#     #         .set_score_maximum(100)
-#     #     if resource_link_id:
-#     #         score_line_item.set_resource_id(resource_link_id)
+#     if ags.can_create_lineitem():
+#         score_line_item = LineItem()
+#         score_line_item.set_id('score') \
+#             .set_score_maximum(100)
+#         if resource_link_id:
+#             score_line_item.set_resource_id(resource_link_id)
 
-#     #     score_line_item = ags.find_or_create_lineitem(score_line_item)
-#     #     scores = ags.get_grades(score_line_item)
+#         score_line_item = ags.find_or_create_lineitem(score_line_item)
+#         scores = ags.get_grades(score_line_item)
 
-#     #     time_line_item = LineItem()
-#     #     time_line_item.set_tag('time') \
-#     #         .set_score_maximum(999) \
-#     #         .set_label('Time Taken')
-#     #     if resource_link_id:
-#     #         time_line_item.set_resource_id(resource_link_id)
+#         time_line_item = LineItem()
+#         time_line_item.set_tag('time') \
+#             .set_score_maximum(999) \
+#             .set_label('Time Taken')
+#         if resource_link_id:
+#             time_line_item.set_resource_id(resource_link_id)
 
-#     #     time_line_item = ags.find_or_create_lineitem(time_line_item)
-#     #     times = ags.get_grades(time_line_item)
-#     # else:
-#     #     scores = ags.get_grades()
-#     #     times = None
+#         time_line_item = ags.find_or_create_lineitem(time_line_item)
+#         times = ags.get_grades(time_line_item)
+#     else:
+#         scores = ags.get_grades()
+#         times = None
 
-#     # members = message_launch.get_nrps().get_members()
+#     members = message_launch.get_nrps().get_members()
 #     scoreboard_result = []
 
-#     # for sc in scores:
-#     #     result = {'score': sc['resultScore']}
-#     #     if times is None:
-#     #         result['time'] = 'Not set'
-#     #     else:
-#     #         for tm in times:
-#     #             if tm['userId'] == sc['userId']:
-#     #                 result['time'] = tm['resultScore']
-#     #                 break
-#     #     for member in members:
-#     #         if member['user_id'] == sc['userId']:
-#     #             result['name'] = member.get('name', 'Unknown')
-#     #             break
-#     #     scoreboard_result.append(result)
+#     for sc in scores:
+#         result = {'score': sc['resultScore']}
+#         if times is None:
+#             result['time'] = 'Not set'
+#         else:
+#             for tm in times:
+#                 if tm['userId'] == sc['userId']:
+#                     result['time'] = tm['resultScore']
+#                     break
+#         for member in members:
+#             if member['user_id'] == sc['userId']:
+#                 result['name'] = member.get('name', 'Unknown')
+#                 break
+#         scoreboard_result.append(result)
 
 #     return JsonResponse(scoreboard_result, safe=False)

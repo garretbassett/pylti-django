@@ -25,14 +25,18 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     function calculateEarnedScore(answer) {
-        if (answer === "A") {
-            return 10;
+        if (answer === "A+") {
+            return 100;
+        } else if (answer === "A-") {
+            return 90;
         } else if (answer === "B") {
-            return 8;
+            return 80;
         } else if (answer === "C") {
-            return 7;
+            return 70;
         } else if (answer === "D") {
-            return 6;
+            return 60;
+        } else if (answer === "F") {
+            return 1;
         }
     }
 
