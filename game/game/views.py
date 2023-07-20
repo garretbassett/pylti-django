@@ -84,12 +84,16 @@ def launch(request):
     launch_data_storage = get_launch_data_storage()
     message_launch = ExtendedDjangoMessageLaunch(request, tool_conf, launch_data_storage=launch_data_storage)
     message_launch_data = message_launch.get_launch_data()
+    print('\n++++++++++ LAUNCH route ++++++++++ \n')
     pprint.pprint(message_launch_data)
+
+    lineitem_url = message_launch_data.get('https://purl.imsglobal.org/spec/lti-ags/claim/endpoint', {}).get('lineitem')
+    request.session['lineitem_url'] = lineitem_url
 
     difficulty = message_launch_data.get('https://purl.imsglobal.org/spec/lti/claim/custom', {})\
         .get('difficulty', None)
     if not difficulty:
-        difficulty = request.GET.get('difficulty', 'normal')
+        difficulty = request.GET.get('difficulty', 'easy')
 
     return render(request, 'game.html', {
         'page_title': PAGE_TITLE,
@@ -98,6 +102,29 @@ def launch(request):
         'launch_id': message_launch.get_launch_id(),
         'curr_user_name': message_launch_data.get('name', ''),
         'curr_diff': difficulty
+    })
+
+def launch_quiz(request):
+    tool_conf = get_tool_conf()
+    # TODO: Update this to the staging URL
+    # tool_conf.set_iss_has_one_client('https://canvas.docker')
+    launch_data_storage = get_launch_data_storage()
+    message_launch = ExtendedDjangoMessageLaunch(request, tool_conf, launch_data_storage=launch_data_storage)
+    message_launch_data = message_launch.get_launch_data()
+    print('\n++++++++++ LAUNCH QUIZ route ++++++++++ \n')
+    pprint.pprint(message_launch_data)
+
+    # lineitem_url = message_launch_data.get('https://purl.imsglobal.org/spec/lti-ags/scope/lineitem', {}).get('@id')
+    lineitem_url = message_launch_data.get('https://purl.imsglobal.org/spec/lti-ags/claim/endpoint', {}).get('lineitem')
+    print('\n\nLINE ITEM URL: ', lineitem_url)
+    request.session['lineitem_url'] = lineitem_url
+
+    return render(request, 'quiz.html', {
+        'page_title': PAGE_TITLE,
+        'is_deep_link_launch': message_launch.is_deep_link_launch(),
+        'launch_data': message_launch.get_launch_data(),
+        'launch_id': message_launch.get_launch_id(),
+        'curr_user_name': message_launch_data.get('name', ''),
     })
 
 
@@ -145,7 +172,11 @@ def score(request, launch_id, earned_score, time_spent):
 
     ags = message_launch.get_ags()
 
+    lineitem_url = request.session.get('lineitem_url')
+    print("\n\n\nGAME SESSION LINEITEM URL: " + lineitem_url)
+
     if ags.can_create_lineitem():
+        # print("\n\n\nCAN CREATE LINE ITEM\n\n\n")
         sc = Grade()
         sc.set_score_given(earned_score)\
             .set_score_maximum(100)\
@@ -155,13 +186,13 @@ def score(request, launch_id, earned_score, time_spent):
             .set_user_id(sub)
 
         sc_line_item = LineItem()
-        sc_line_item.set_tag('score')\
+        sc_line_item.set_id(lineitem_url)\
             .set_score_maximum(100)\
-            .set_label('Score')
+            # .set_label('Score')
         if resource_link_id:
             sc_line_item.set_resource_id(resource_link_id)
 
-        ags.put_grade(sc, sc_line_item)
+        result = ags.put_grade(sc, sc_line_item)
 
         tm = Grade()
         tm.set_score_given(time_spent)\
@@ -171,15 +202,8 @@ def score(request, launch_id, earned_score, time_spent):
             .set_grading_progress('FullyGraded')\
             .set_user_id(sub)
 
-        tm_line_item = LineItem()
-        tm_line_item.set_tag('time')\
-            .set_score_maximum(999)\
-            .set_label('Time Taken')
-        if resource_link_id:
-            tm_line_item.set_resource_id(resource_link_id)
-
-        result = ags.put_grade(tm, tm_line_item)
     else:
+        # print("\n\n\nCANNOT CREATE LINE ITEM\n\n\n")
         sc = Grade()
         sc.set_score_given(earned_score) \
             .set_score_maximum(100) \
@@ -192,7 +216,8 @@ def score(request, launch_id, earned_score, time_spent):
     return JsonResponse({'success': True, 'result': result.get('body')})
 
 
-def scoreboard(request, launch_id):
+@require_POST
+def quiz_score(request, launch_id, earned_score):
     tool_conf = get_tool_conf()
     launch_data_storage = get_launch_data_storage()
     message_launch = ExtendedDjangoMessageLaunch.from_cache(launch_id, request, tool_conf,
@@ -200,54 +225,209 @@ def scoreboard(request, launch_id):
     resource_link_id = message_launch.get_launch_data() \
         .get('https://purl.imsglobal.org/spec/lti/claim/resource_link', {}).get('id')
 
-    if not message_launch.has_nrps():
-        return HttpResponseForbidden("Don't have names and roles!")
-
     if not message_launch.has_ags():
         return HttpResponseForbidden("Don't have grades!")
 
+    sub = message_launch.get_launch_data().get('sub')
+    timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
+    earned_score = int(earned_score)
+
     ags = message_launch.get_ags()
 
+    lineitem_url = request.session.get('lineitem_url')
+    print("\n\n\nSESSION LINEITEM URL: " + lineitem_url)
+    if not lineitem_url:
+        print("\nNO LINEITEM URL FOUND")
+        # return HttpResponseForbidden("Line item URL not found")
+
     if ags.can_create_lineitem():
-        score_line_item = LineItem()
-        score_line_item.set_tag('score') \
-            .set_score_maximum(100) \
-            .set_label('Score')
+        print("\n\n\nCAN CREATE LINE ITEM\n\n\n")
+        sc = Grade()
+        sc.set_score_given(earned_score)\
+            .set_score_maximum(100)\
+            .set_timestamp(timestamp)\
+            .set_activity_progress('Completed')\
+            .set_grading_progress('FullyGraded')\
+            .set_user_id(sub)
+
+        sc_line_item = LineItem()
+        sc_line_item.set_id(lineitem_url)\
+            .set_score_maximum(100)\
+            .set_label('Quiz Score')
         if resource_link_id:
-            score_line_item.set_resource_id(resource_link_id)
+            sc_line_item.set_resource_id(resource_link_id)
 
-        score_line_item = ags.find_or_create_lineitem(score_line_item)
-        scores = ags.get_grades(score_line_item)
+        result = ags.put_grade(sc, sc_line_item)
 
-        time_line_item = LineItem()
-        time_line_item.set_tag('time') \
-            .set_score_maximum(999) \
-            .set_label('Time Taken')
-        if resource_link_id:
-            time_line_item.set_resource_id(resource_link_id)
-
-        time_line_item = ags.find_or_create_lineitem(time_line_item)
-        times = ags.get_grades(time_line_item)
     else:
-        scores = ags.get_grades()
-        times = None
+        print("\n\n\nCANNOT CREATE LINE ITEM\n\n\n")
+        sc = Grade()
+        sc.set_score_given(earned_score) \
+            .set_score_maximum(100) \
+            .set_timestamp(timestamp) \
+            .set_activity_progress('Completed') \
+            .set_grading_progress('FullyGraded') \
+            .set_user_id(sub)
+        result = ags.put_grade(sc)
 
-    members = message_launch.get_nrps().get_members()
-    scoreboard_result = []
+    return JsonResponse({'success': True, 'result': result.get('body')})
 
-    for sc in scores:
-        result = {'score': sc['resultScore']}
-        if times is None:
-            result['time'] = 'Not set'
-        else:
-            for tm in times:
-                if tm['userId'] == sc['userId']:
-                    result['time'] = tm['resultScore']
-                    break
-        for member in members:
-            if member['user_id'] == sc['userId']:
-                result['name'] = member.get('name', 'Unknown')
-                break
-        scoreboard_result.append(result)
 
-    return JsonResponse(scoreboard_result, safe=False)
+# @require_POST
+# def quiz_score(request, launch_id, earned_score):
+#     tool_conf = get_tool_conf()
+#     launch_data_storage = get_launch_data_storage()
+#     message_launch = ExtendedDjangoMessageLaunch.from_cache(launch_id, request, tool_conf,
+#                                                             launch_data_storage=launch_data_storage)
+    
+#     # authorization_header = request.META.get('HTTP_AUTHORIZATION')
+#     # if authorization_header:
+#     #     access_token = authorization_header.split(' ')[1]  # Assuming Bearer token format
+#     #     # Use the access_token as needed
+#     #     print("Access Token: ", access_token)
+#     # else:
+#     #     # Handle case when Authorization header is not present or does not contain the access token
+#     #     print("Access Token not found")
+    
+#     resource_link_id = message_launch.get_launch_data() \
+#         .get('https://purl.imsglobal.org/spec/lti/claim/resource_link', {}).get('id')
+    
+#     # resource_link_id = message_launch.get_launch_data() \
+#     #     .get('https://purl.imsglobal.org/spec/lti/claim/lti1p1', {}).get('resource_link_id')
+
+#     if not message_launch.has_ags():
+#         return HttpResponseForbidden("Don't have grades!")
+
+#     sub = message_launch.get_launch_data().get('sub')
+#     earned_score = int(earned_score)
+
+#     ags = message_launch.get_ags()
+
+#     lineitem_url = request.session.get('lineitem_url')
+#     if not lineitem_url:
+#         return HttpResponseForbidden("Line item URL not found")
+    
+#     sc = Grade()
+#     sc.set_score_given(earned_score)\
+#         .set_score_maximum(100)\
+#         .set_activity_progress('Completed')\
+#         .set_grading_progress('FullyGraded')\
+#         .set_user_id(sub)
+
+#     sc_line_item = LineItem()
+#     sc_line_item.set_tag('score')\
+#         .set_score_maximum(100)\
+#         .set_label('Score')
+#     if resource_link_id:
+#         sc_line_item.set_resource_id(resource_link_id)
+
+#     result = ags.put_grade(sc, sc_line_item)
+    
+#     # line_item = LineItem()
+#     # line_item.set_id(lineitem_url)\
+#     #     .set_score_given(earned_score)\
+#     #     .set_score_maximum(100)\
+#     #     .set_activity_progress('Completed')\
+#     #     .set_grading_progress('FullyGraded')\
+#     #     .set_user_id(sub)
+
+#     # sc = Grade()
+#     # sc.set_score_given(earned_score) \
+#     #     .set_score_maximum(100) \
+#     #     .set_activity_progress('Completed')\
+#     #     .set_grading_progress('FullyGraded')\
+#     #     .set_user_id(sub)
+
+#     # result = ags.put_grade(sc, line_item)
+
+#     # if ags.can_create_lineitem():
+#     #     print("\n\n\nCAN CREATE LINE ITEM\n\n\n")
+#     #     sc = Grade()
+#     #     sc.set_score_given(earned_score)\
+#     #         .set_score_maximum(100)\
+#     #         .set_timestamp(timestamp)\
+#     #         .set_activity_progress('Completed')\
+#     #         .set_grading_progress('FullyGraded')\
+#     #         .set_user_id(sub)
+
+#     #     sc_line_item = LineItem()
+#     #     sc_line_item.set_tag('score')\
+#     #         .set_score_maximum(100)\
+#     #         .set_label('Score')
+#     #     if resource_link_id:
+#     #         sc_line_item.set_resource_id(resource_link_id)
+
+#     #     result = ags.put_grade(sc, sc_line_item)
+
+#     # else:
+#     #     print("\n\n\nCANNOT CREATE LINE ITEM\n\n\n")
+#     #     sc = Grade()
+#     #     sc.set_score_given(earned_score) \
+#     #         .set_score_maximum(100) \
+#     #         .set_timestamp(timestamp) \
+#     #         .set_activity_progress('Completed') \
+#     #         .set_grading_progress('FullyGraded') \
+#     #         .set_user_id(sub)
+#     #     result = ags.put_grade(sc)
+
+#     return JsonResponse({'success': True, 'result': result.get('body')})
+
+
+# def scoreboard(request, launch_id):
+#     # tool_conf = get_tool_conf()
+#     # launch_data_storage = get_launch_data_storage()
+#     # message_launch = ExtendedDjangoMessageLaunch.from_cache(launch_id, request, tool_conf,
+#     #                                                         launch_data_storage=launch_data_storage)
+#     # resource_link_id = message_launch.get_launch_data() \
+#     #     .get('https://purl.imsglobal.org/spec/lti/claim/resource_link', {}).get('id')
+
+#     # if not message_launch.has_nrps():
+#     #     return HttpResponseForbidden("Don't have names and roles!")
+
+#     # if not message_launch.has_ags():
+#     #     return HttpResponseForbidden("Don't have grades!")
+
+#     # ags = message_launch.get_ags()
+
+#     # if ags.can_create_lineitem():
+#     #     score_line_item = LineItem()
+#     #     score_line_item.set_id('score') \
+#     #         .set_score_maximum(100)
+#     #     if resource_link_id:
+#     #         score_line_item.set_resource_id(resource_link_id)
+
+#     #     score_line_item = ags.find_or_create_lineitem(score_line_item)
+#     #     scores = ags.get_grades(score_line_item)
+
+#     #     time_line_item = LineItem()
+#     #     time_line_item.set_tag('time') \
+#     #         .set_score_maximum(999) \
+#     #         .set_label('Time Taken')
+#     #     if resource_link_id:
+#     #         time_line_item.set_resource_id(resource_link_id)
+
+#     #     time_line_item = ags.find_or_create_lineitem(time_line_item)
+#     #     times = ags.get_grades(time_line_item)
+#     # else:
+#     #     scores = ags.get_grades()
+#     #     times = None
+
+#     # members = message_launch.get_nrps().get_members()
+#     scoreboard_result = []
+
+#     # for sc in scores:
+#     #     result = {'score': sc['resultScore']}
+#     #     if times is None:
+#     #         result['time'] = 'Not set'
+#     #     else:
+#     #         for tm in times:
+#     #             if tm['userId'] == sc['userId']:
+#     #                 result['time'] = tm['resultScore']
+#     #                 break
+#     #     for member in members:
+#     #         if member['user_id'] == sc['userId']:
+#     #             result['name'] = member.get('name', 'Unknown')
+#     #             break
+#     #     scoreboard_result.append(result)
+
+#     return JsonResponse(scoreboard_result, safe=False)
