@@ -30,6 +30,10 @@ class ExtendedDjangoMessageLaunch(DjangoMessageLaunch):
         """
         iss = self.get_iss()
         deep_link_launch = self.is_deep_link_launch()
+        if deep_link_launch:
+            print('\n\n\nDEEP LINK LAUNCH\n\n\n')
+        else:
+            print('\n\n\nNOT DEEP LINK LAUNCH\n\n\n')
         if iss == "http://imsglobal.org" and deep_link_launch:
             return self
         return super().validate_nonce()
