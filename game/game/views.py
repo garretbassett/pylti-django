@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import pprint
 
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from pylti1p3.contrib.django import DjangoOIDCLogin, DjangoMessageLaunch, DjangoCacheDataStorage
 from pylti1p3.deep_link_resource import DeepLinkResource
@@ -109,6 +111,7 @@ def launch(request):
         'curr_diff': difficulty
     })
 
+@csrf_exempt
 def launch_quiz(request):
     tool_conf = get_tool_conf()
     # TODO: Update this to the staging URL

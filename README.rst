@@ -1,9 +1,10 @@
-Example of usage PyLTI1p3 library within Django framework
+Rhino LTI Test App
 ==========================================================
 
-`PyLTI1p3`_ is a Python implementation of LTI 1.3 Advantage Tool.
+This app tests potential functionality within Rhino that would enable data transfer to and from a user's LMS using the LTI (Learning Tools Interoperability) 1.3 spec. It uses `PyLTI1p3`_, a Python implementation of LTI 1.3 Advantage Tool, and was originally forked from `pylti1.3-django-example`_.
 
 .. _PyLTI1p3: https://github.com/dmitry-viskov/pylti1.3
+.. _pylti1.3-django-example: https://github.com/dmitry-viskov/pylti1.3-django-example
 
 First of all choose and configure test LTI 1.3 Platform. It may be:
 
